@@ -1,0 +1,5 @@
+# для всех текстовых файлов
+* text=auto
+
+# Python-файлы
+*.py text eol=lf

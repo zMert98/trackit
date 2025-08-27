@@ -1,0 +1,79 @@
+name: CI/CD for TaskTracker
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-docker:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build Docker image
+        run: docker build -t ${{ secrets.DOCKER_USERNAME }}/trackit:latest .
+
+      - name: Push Docker image
+        run: docker push ${{ secrets.DOCKER_USERNAME }}/trackit:latest
+
+  test:
+    needs: build-docker
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Run docker compose
+        env:
+          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
+        run: docker compose -f .github/docker/docker-compose.ci.yml build
+
+      - name: Run Containers
+        env:
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_PORT: 5432
+          DB_USER: ${{ secrets.DB_USER }}
+          SECRET_KEY: ${{ secrets.SECRET_KEY }}
+          DJANGO_SETTINGS_MODULE: ${{ vars.DJANGO_SETTINGS_MODULE }}
+          PASSWORD_RESET_BASE_URL: ${{ vars.PASSWORD_RESET_BASE_URL }}
+          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
+          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          CELERY_BROKER: ${{ vars.CELERY_BROKER }}
+          CELERY_BACKEND: ${{ vars.CELERY_BACKEND }}
+
+        run: docker compose -f .github/docker/docker-compose.ci.yml up --abort-on-container-exit
+        working-directory: ${{ github.workspace }}
+
+      - name: Tear down
+        if: always()
+        run: docker compose -f .github/docker/docker-compose.ci.yml down -v
+
+  lint:
+    needs: test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Pull image
+        run: docker pull ${{ secrets.DOCKER_USERNAME }}/trackit:latest
+
+      - name: Run flake8
+        run: docker run --rm ${{ secrets.DOCKER_USERNAME }}/trackit:latest flake8 .
