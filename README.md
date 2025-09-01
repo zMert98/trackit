@@ -46,7 +46,7 @@
 	 POSTGRES_USER=trackit_root
 	 POSTGRES_PASSWORD=<your_password>
 ```
-*  Создать и поднять контейнеры `docker compose up --build` 
+*  Создать и поднять контейнеры `docker compose up` 
 *  Запуск тестов (опционально) `docker exec -it trackit_app pytest`
 
 ---
